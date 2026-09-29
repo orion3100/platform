@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M3NBF9SQCK3HV6QHP50TB76Q",
+  "strategy": "manual-commit",
+  "branch": "feature/bug-reporter",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "lib/bugReport/ahoCorasick.ts",
+    "lib/bugReport/variants.ts",
+    "tests/e2e/bugReport/canaries.ts",
+    "tests/e2e/bugReport/index.ts",
+    "tests/e2e/bugReport/longTasks.ts",
+    "tests/e2e/bugReport/sentry-smoke.spec.ts",
+    "tests/e2e/bugReport/sentryApi.ts",
+    "tests/e2e/bugReport/stubSentry.ts",
+    "tests/e2e/bugReport/tunnel.ts",
+    "tests/unit/bugReport-ahoCorasick.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 56,
+    "cache_creation_tokens": 86596,
+    "cache_read_tokens": 1864570,
+    "output_tokens": 31933,
+    "api_call_count": 25
+  }
+}
