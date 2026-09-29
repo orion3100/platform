@@ -1,0 +1,104 @@
+<task-notification>
+<task-id>a95269e15fce69a0f</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/tasks/a95269e15fce69a0f.output</output-file>
+<status>failed</status>
+<summary>Agent "Pkg 4b: Pii type guardrail" failed: Agent terminated early due to an API error: You've hit your session limit · resets 5:20am (UTC) (error type rate_limit, HTTP 429, request id req_011CfWrcZbyXKMBwrmEYr8as, model sent to the API: claude-opus-5-5)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Now the lint.yml step.</result>
+<worktree><worktreePath>/home/jon/platform/.claude/worktrees/agent-a95269e15fce69a0f</worktreePath><worktreeBranch>worktree-agent-a95269e15fce69a0f</worktreeBranch></worktree>
+</task-notification>
+
+---
+
+BTW Dev Sentry stores replays again. Tell the VM agent to re-run node send-replay.mjs && node verify-replay.mjs.
+
+---
+
+<task-notification>
+<task-id>a1b4c4e0177e2ff5d</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/tasks/a1b4c4e0177e2ff5d.output</output-file>
+<status>failed</status>
+<summary>Agent "Pkg 2a phase 1: taint trace" failed: Agent terminated early due to an API error: You've hit your session limit · resets 5:20am (UTC) (error type rate_limit, HTTP 429, request id req_011CfWreAumtdTVoWUxSHo5D, model sent to the API: claude-opus-5-5)</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Now the canarySeed module.</result>
+<worktree><worktreePath>/home/jon/platform/.claude/worktrees/agent-a1b4c4e0177e2ff5d</worktreePath><worktreeBranch>worktree-agent-a1b4c4e0177e2ff5d</worktreeBranch></worktree>
+</task-notification>
+
+---
+
+WOAH RESET we are good keep going
+
+---
+
+<task-notification>
+<task-id>a95269e15fce69a0f</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/tasks/a95269e15fce69a0f.output</output-file>
+<status>completed</status>
+<summary>Agent "Pkg 4b: Pii type guardrail" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Package 4b is done and committed on `bug-reporter/pkg-4b-guardrail` (branched from `bug-reporter/pkg-2-classification`, not pushed). Typecheck and lint are unchanged from baseline. The rule's baseline is **136 violations**. It runs as its own command, because inside `next lint` it tripled the lint time.
+
+**Measurements**
+- **`npx tsc --noEmit -p .`**: 8 errors before and after, the same ones (5 in `tests/e2e/test-assignment-view-as-student.spec.ts`, 3 in `tests/unit/bulk-assign-assignee-options.test.ts`). I compared the error lists line by line.
+- **`npm run typecheck:functions`** (Deno copy): 85 errors before and after, the same ones. Two differences are cosmetic: line numbers in `_shared/SupabaseTypes.d.ts` moved, and the existing `mcp-server/index.ts:647` error now prints the branded type in its message.
+- **Lint time:**
+
+  | Command | Time |
+  |---|---|
+  | `next lint`, no cache, before | 21–23 s |
+  | `next lint`, no cache, with the rule inside it | 66 s |
+  | `next lint`, no cache, final (rule kept out) | ~24 s |
+  | `npm run lint:pii` (separate pass, 760 files) | 52–59 s |
+- **Main lint warnings:** 155 before and after.
+- **Rule baseline:** 136, all "free text or grade rendered outside `&lt;ReportBlock&gt;`". None are "Pii value inside `data-report-unmask`", because no component carries that attribute yet.
+
+**What I built**
+- **Branding** (`scripts/bugReport/brandPiiColumns.ts`, called from `scripts/PostprocessSupabaseTypes.ts`):
+  - 213 classified `Row` columns (tables and views) are now `Pii&lt;kind, T&gt;`, with `| null` kept outside the brand. `Insert` and `Update` are untouched.
+  - `Pii` is `T &amp; { readonly __pii?: K }`, declared in the generated file, so the Deno copy needs no import. Plain strings and numbers still assign to and from it.
+  - Running it again changes nothing. `scripts/bugReport/schemaReader.ts` strips the brand when reading column types, so package 2's generator and exhaustiveness check behave as before.
+  - Both copies of `SupabaseTypes.d.ts` are regenerated.
+- **Lint rule** (`eslint-rules/pii-render.js`, `eslint-rules/index.js`): detects the brand through the type checker.
+  - Catches: children; attributes; template literals; `+`; `?:` / `||` / `??`; string and number methods such as `toFixed` and `toUpperCase`; `String()` / `Number()`; arrays; spreads; values held in locals.
+  - For any other call, it counts only when the return type is branded (so `fmt(row.body)` is not reported).
+  - Inside a `data-report-unmask` subtree, props passed to custom components are also flagged. Outside one, only DOM attributes are.
+  - Anything under a `ReportBlock` ancestor is exempt.
+- **Separate pass and ratchet:**
+  - `eslint.pii.config.mjs` runs only this rule, with type information.
+  - `npm run lint:pii` runs `scripts/bugReport/piiLintRatchet.mjs` against `eslint-rules/pii-baseline.json` (total, per message, per file). `--list` prints each violation; `--update` lowers the baseline.
+  - `.github/workflows/lint.yml` has a new step after `npm run lint`.
+  - I added a violation on purpose: the ratchet reported 137 against 136, named the file, and exited 1.
+- **ADR 6 check** (`.github/workflows/report-unmask-review.yml`):
+  - Runs on `pull_request_target`, with no checkout. It reads the PR's diff through the API.
+  - If any added line contains `data-report-unmask`, a job runs in a `report-unmask-review` environment. It waits there until a code owner approves it, the same way `ci-approval` works in `_trust-gate.yml`.
+  - It fails safe: a text file with no inline diff, more than 3000 files, or a failed scan all require approval.
+  - I tested the diff parsing on made-up data only; the workflow itself hasn't run.
+- **`.github/CODEOWNERS`**: covers the guardrail files, using a placeholder owner, `@pawtograder/REPLACE-ME-report-unmask-owners`.
+
+**Tests** (Jest, run locally with `npx jest tests/unit/bugReport/`): 79 of 79 pass across the 5 suites.
+- `tests/unit/bugReport/piiRenderRule.test.ts`: 32 rule cases, valid and invalid.
+- `tests/unit/bugReport/brandPiiColumns.test.ts`: covers the transform, and fails if the committed types were regenerated without branding.
+
+**Where the brand gets lost**
+- **Kept:** `Database[...]["Row"]` props, `DatabaseTypes.d.ts` aliases (including `UserProfile`, `HelpRequest`, `DiscussionThread`), `TableController.list()`, `useTableControllerValueById`, `useListTableControllerValues`, and supabase-js `.select()` results. I checked each with a type probe.
+- **Lost:**
+  - `useUserProfile` in `hooks/useUserProfiles.tsx` declares its own `{ name: string }` type, so `PersonName` and similar components lose the name brand.
+  - Code that declares its own row types.
+  - Props typed as plain `string` / `number`, e.g. `SpokenValue spoken={...}`.
+  - RPC and edge-function results, which aren't branded because only `Row` columns are.
+  - Arbitrary formatting helpers.
+  - JSX built in a separate variable and rendered inside an unmask element later.
+
+**Decisions for the human**
+- The real owners team, both in CODEOWNERS and as the required reviewers of the `report-unmask-review` environment. Until the environment exists with reviewers, the approval job passes without waiting.
+- Making `Report unmask review / owner-approval` a required check.
+- Both workflow edits take effect only after merge to staging, because `pull_request_target` runs the default branch's copy.
+- The 136 findings come straight from the draft classification awaiting HU6 review; for example, tag names, file names and calendar event titles are classified `free_text`. Changes from that review will move the count.
+
+**Commits:** `dbe2528c`, `62a1d45e`, `b1ac866a`, `be7b7bda`.</result>
+<usage><subagent_tokens>175698</subagent_tokens><tool_uses>13</tool_uses><duration_ms>164100</duration_ms></usage>
+<worktree><worktreePath>/home/jon/platform/.claude/worktrees/agent-a95269e15fce69a0f</worktreePath><worktreeBranch>worktree-agent-a95269e15fce69a0f</worktreeBranch></worktree>
+</task-notification>
