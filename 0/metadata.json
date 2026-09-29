@@ -1,0 +1,83 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M3Q155TN7S7TR2BMFVSBG03R",
+  "session_id": "8b39a430-78a7-4625-b584-fa0fd315d6ec",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-29T16:49:52.241079942Z",
+  "branch": "feature/bug-reporter",
+  "checkpoints_count": 7,
+  "save_step_count": 3,
+  "files_touched": [],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5[1m]",
+  "turn_id": "6aee8be53498",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 392,
+    "cache_creation_tokens": 992367,
+    "cache_read_tokens": 33932317,
+    "output_tokens": 130049,
+    "api_call_count": 180,
+    "subagent_tokens": {
+      "input_tokens": 732,
+      "cache_creation_tokens": 6498415,
+      "cache_read_tokens": 72774674,
+      "output_tokens": 250779,
+      "api_call_count": 371
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-goal-2026-09-29T00:32:32.615140801Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "goal"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "ac7ebc919fba",
+      "timestamp": "2026-09-29T00:32:32.615140801Z",
+      "native": {
+        "command": "/goal"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/goal",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 27
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 517,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "bug-reporter-handoff.md": 517
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 517,
+      "agent_lines_removed": 0
+    }
+  ]
+}
