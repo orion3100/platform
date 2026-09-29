@@ -1048,3 +1048,207 @@ None blocking. Two decisions for you: the level rule, whose one departure from y
 ---
 
 Your claude.ai usage limit has reset. Continue the task you were working on when the limit was reached; do not repeat work that is already complete.
+
+---
+
+<task-notification>
+<task-id>afa0168f4e22227cc</task-id>
+<output-file>/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/tasks/afa0168f4e22227cc.output</output-file>
+<status>completed</status>
+<summary>Agent "Pkg 2a phase 2: upload scan" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>That notification is for the leftover `npm ci` wait loop I started early on. Its `pgrep` pattern matched its own command line, so it never exited. I had already killed it, so this changes nothing, and the report above is still final.</result>
+<usage><subagent_tokens>260502</subagent_tokens><tool_uses>138</tool_uses><duration_ms>17345779</duration_ms></usage>
+<worktree><worktreePath>/home/jon/platform/.claude/worktrees/agent-afa0168f4e22227cc</worktreePath><worktreeBranch>worktree-agent-afa0168f4e22227cc</worktreeBranch></worktree>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>ab015983456c5d1c3</task-id>
+<tool-use-id>toolu_01E3F23crFUkt8b1zQouux8U</tool-use-id>
+<output-file>/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/tasks/ab015983456c5d1c3.output</output-file>
+<status>completed</status>
+<summary>Agent "Review: security and privacy" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I found three high-severity privacy defects, one medium and three low. The three high ones share a cause: the Sentry SDK's default integrations are still on. `integrations: []` in `instrumentation-client.ts:59` and `sentry.server.config.ts:14` only adds to the defaults; it doesn't replace them. The comment on `sentry.server.config.ts:14` says "the defaults were never on under Bugsink", and that is wrong. Every finding below was confirmed by reading the code on `feature/bug-reporter` @ c11dcf3f, and the three high ones also by running the pinned Sentry SDK (10.3.0) in small Node/jsdom scripts. Scratch scripts are in `/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/scratchpad/review-sec/` (`fb.cjs`, `srv.cjs`, `rp.ts`).
+
+## Findings (most severe first)
+
+### 1. HIGH: server error events send the Supabase session cookie to Sentry (ADR 3, and a credential)
+- **Where:** `sentry.server.config.ts:14`, `instrumentation.ts` (`onRequestError = Sentry.captureRequestError`).
+- **Defect:** The default `RequestData` integration keeps the `cookie` header and a parsed `cookies` object on server events. In this SDK version its default is `cookies: true`, whatever `sendDefaultPii` says.
+- **Scenario:** Any server-side error while a user is logged in sends `sb-&lt;ref&gt;-auth-token=base64-…` to Sentry. That cookie holds the access token, the refresh token, and the user object with email and `user_metadata` (name). `srv.cjs` shows the event keeping `request.headers.cookie`, `request.cookies`, the Referer, and a URL with its query.
+- **Why G1 passes anyway:** `identity.spec.ts` searches the raw envelope for the plain-text email, and the cookie is base64, so the test can't see it.
+- **Unverified:** whether the dev/prod Sentry's server-side scrubbing filters it. The spec calls that scrubbing a backstop only.
+- **Fix:** Pass `Sentry.requestDataIntegration({ include: { cookies: false, headers: false, query_string: false } })`, or strip `request.cookies`, `headers.cookie` and `Referer` in `beforeSend`. Do the same in `sentry.edge.config.ts` (the middleware wrapper also attaches request headers there; I didn't verify that edge path end to end). Make G1 also assert that no envelope contains a `cookie` key or an `sb-` token.
+
+### 2. HIGH: SDK breadcrumbs on error and feedback events carry names and emails (ADR 3)
+The tracker's open question ("SDK breadcrumbs on the feedback event carry aria-labels") is real.
+- **Where:** `instrumentation-client.ts:59` (the default Breadcrumbs integration).
+- **Defect:** Breadcrumbs are attached unredacted to every error event and to the feedback item that `submitReport` files. Three sources:
+  - **Clicks:** the click target string always includes `aria-label`, `title` and `alt` of the clicked element.
+  - **Requests:** the full URL of every fetch/XHR, including the query string.
+  - **Console:** console messages.
+- **Scenario (checked in `fb.cjs`):** An instructor clicks a student button in `manage/gradebook/expressionBuilder.tsx:357` (`title={s.users?.email}`). The next error, or their bug report, carries `ui.click: td &gt; button[type="button"][title="jane.doe@northeastern.edu"]`.
+  - `gradebookTable.tsx:3461` rows (`aria-label="Student &lt;name&gt; grades"`) leak names the same way when the row is the click target.
+  - `importStudentsCSVModal.tsx:194` issues a GET with `users.email=in.(…)`, which becomes a fetch breadcrumb URL.
+- **Fix:** In `Sentry.init`, add a `beforeBreadcrumb` that needs no imports:
+  - drop `[aria-label|title|alt|name="…"]` from `ui.*` messages;
+  - strip query strings from `fetch`/`xhr`/`navigation` URLs;
+  - drop `console` breadcrumbs, or truncate them to the level.
+  - Alternatively, pass `breadcrumbsIntegration({ console: false, dom: false })`.
+  - Separately, clear `event.breadcrumbs` in a `beforeSendFeedback` hook, since the replay already carries redacted breadcrumbs.
+
+### 3. HIGH: the feedback event's `request.url` and Referer bypass `redactReportUrl`
+- **Where:** `lib/bugReport/submitFeedback.ts:155`, plus the default HttpContext integration.
+- **Defect:** `contexts.feedback.url` is redacted, but HttpContext then adds `request.url = location.href` and a `Referer` header, both raw. This applies to the feedback event and to every error event.
+- **Scenario (checked in `fb.cjs`):** A TA searches the help queue for `jane.doe@northeastern.edu`, which navigates to `/course/1/office-hours/search?q=jane.doe%40northeastern.edu` (`help-request-search.tsx:238`), then presses Report a bug. The feedback shows `url: …?q=****` but `request.url: …?q=jane.doe%40northeastern.edu`.
+- **Fix:** In `beforeSendFeedback`, set `event.request.url` to the same redacted URL and drop the `Referer`. In `beforeSend`, strip query and fragment from `request.url` and `Referer` on error events. Add an assertion on `request` to the submitFeedback unit test.
+
+### 4. MEDIUM: the route policy records unlisted static sibling routes (ADR 5, "off unless listed")
+- **Where:** `lib/bugReport/routePolicy.ts:33-35` and the matcher at lines 60-69.
+- **Defect:** The matcher lets `[param]` match any segment, with no knowledge of the real route tree. Static pages sitting next to a listed `[param]` route therefore match it.
+- **Scenario (checked in `rp.ts`):** These all return `structure` and start recording, though none is listed:
+  - `/course/1/discussion/new` (matches `discussion/[root_id]`)
+  - `/course/1/office-hours/search` (matches `office-hours/[queue_id]`); this page lists other students' requests and has the free-text `?q=`
+  - `/course/1/office-hours/request` (same pattern)
+- **Fix:** Match against the real app-router tree. Options: have the route-policy test walk `app/` and fail when a static sibling page matches a `[param]` entry; add negative static exclusions; or decide from `useSelectedLayoutSegments()` or the route manifest rather than the pathname.
+
+### 5. LOW: `window.__bugReportRecorder` is exposed in production builds
+- **Where:** `lib/bugReport/activeRecorder.ts:28`.
+- **Defect:** Unlike the other `__bugReport*` hooks, it isn't gated on `BUG_REPORT_E2E`.
+- **Scenario:** Any same-origin script or browser extension can call `freeze()` and read up to 10 minutes of the *pre-redaction* buffer. That includes the type-5 breadcrumbs with raw console text and fetch URLs.
+- **Fix:** Set it only when `process.env.BUG_REPORT_E2E === "true"`.
+
+### 6. LOW: the tunnel buffers any body with no cap
+- **Where:** `app/api/tunnel/route.ts:25`.
+- **Defect:** It calls `arrayBuffer()` on anonymous POSTs of any size; only the ingress `proxy-body-size: 55m` bounds it. The old code had the same issue.
+- **Related:** Because `X-Forwarded-For` is no longer forwarded (an accepted decision), Sentry sees every client as the app server's IP. One abusive client can use up the project's rate limit, and everyone's reports then get 429.
+- **Fix:** Reject when `Content-Length` exceeds about 10 MiB (Sentry's item limit), and cap while streaming. Consider an app-side per-IP rate limit on `/api/tunnel`.
+
+### 7. LOW: gaps in the unmask governance
+- **Where:** `.github/CODEOWNERS`, `.github/workflows/report-unmask-review.yml:57`.
+- **Defect:** CODEOWNERS doesn't cover the files that actually decide what is recorded as text: `lib/bugReport/recorder.ts` (`UNMASK_SELECTOR`, `TEXT_ATTRIBUTES`, `BLOCK_SELECTOR`), `lib/bugReport/routePolicy.ts` and `lib/bugReport/redaction/`. The grep check only matches the literal string, so `"data-report-" + "unmask"` evades it.
+- **Scenario:** A PR sets `UNMASK_SELECTOR = "*"`, or adds a gradebook route at `full`, and merges with no owner approval.
+- **Fix:** Add those paths to CODEOWNERS.
+
+The nightly `sentry` lane also passes the delete-scoped `SENTRY_PURGE_TOKEN` to PR-head code for any trusted, labeled PR. This is by design under the trust gate, but restricting suite `h` to schedule and dispatch runs would be tighter.
+
+## Checked and clean
+- **Tunnel SSRF and DSN parsing:** it forwards only to the configured DSN's endpoint. Host (default port normalised), project and path prefix are compared; a userinfo trick fails the `\w+` key check. Only the rate-limit headers are passed through.
+- **E2E-only code:**
+  - `BUG_REPORT_E2E` is inlined at build time through `next.config.ts` `env`.
+  - Released images are never built with `E2E_ENABLE`: the Dockerfile has no such arg, `.env*` is in `.dockerignore`, and `release-images.yml` doesn't set it.
+  - Runtime `E2E_ENABLE` on the web pod comes only from `web.e2e.enabled`, which is set in previews, not staging. `validations.yaml` refuses it in production.
+  - The localStorage policy, the test hooks and the harness page are all compiled out.
+  - The harness taint block is escaped.
+- **Hard constraint 1:** no replay or feedback integration, both replay sample rates are 0, and `includeReplay: false` is set. Replay events drop scope data and send `ip_address: null`. The pre-submit replay link is only `replay_id` in the error event's DSC, as §5 specifies. Uploads happen only through `submitReport`.
+- **`setUser` and edge-function identity:** the changes are ID only; the email tags are gone.
+- **Ingest gating:** it is armed only from the server-rendered flag and disarmed when the flag is off. Recorder start rechecks the navigation sequence number and `location`, and per-event path checks drop events from unlisted routes. With the flag off, only no-op registrations run.
+- **Migration:** RLS is on with no policies; access is revoked from public, anon and authenticated; the SECURITY DEFINER functions set `search_path = public` and are executable only by `service_role`. The cron job goes through `call_edge_function_internal`.
+- **Purge function:** it checks the `EDGE_FUNCTION_SECRET` header and fails closed. Logs and the response carry counts only. Deletes require an exact `class_id` match.
+- **Workflows:**
+  - The `detect` and unmask jobs read PR data through the API only.
+  - Checkouts are pinned to `head.sha` after the trust gate.
+  - No PR title, label or branch is interpolated into `run:`; they go through `env`.
+  - `npm ci` runs before any secret is in the environment.
+  - `permissions: {}` is the default, with a minimal scope per job.</result>
+<usage><subagent_tokens>189048</subagent_tokens><tool_uses>55</tool_uses><duration_ms>418950</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a94dcd7eeb1b2433b</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/tasks/a94dcd7eeb1b2433b.output</output-file>
+<status>completed</status>
+<summary>Agent "Review: upload, purge, migration" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I found no high-severity defects. I have two medium findings, the purge cron call is rejected locally and a segment can hold only the Meta event, plus six lower ones. The upload framing, retries, feedback ordering and the purge's date math and exact-tag guard hold up.
+
+I reviewed `feature/bug-reporter` at c11dcf3f, read-only. Scratch scripts are in `/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/scratchpad/review-up/`. Every Sentry probe was a GET with the agent token, and I printed no secret values.
+
+## Findings, most severe first
+
+**1. Medium: the cron call to the purge function is rejected before the function runs, except on the Helm-chart runtime.**
+- **Where:** `supabase/config.toml`, where a `[functions.bug-report-retention-purge]` block is missing. The invoker is in `supabase/migrations/20260929120000_bug_reporter.sql:104-111`.
+- **Defect:** without that block, `verify_jwt` defaults to true. The pg_cron path sends only `x-edge-function-secret`, with no JWT.
+- **Scenario:** I tested it on the local stack. `POST /functions/v1/bug-report-retention-purge` returns 401 `{"msg":"Error: Missing authorization header"}` from the gateway. `github-membership-reconciler`, which has `verify_jwt = false`, gets through to its own handler. So under `supabase functions serve` and on any Supabase-hosted deploy, the daily purge never runs. The self-hosted chart does no JWT checks (`charts/pawtograder/images/edge-functions/main.ts:5`), so production is fine. The comment there says "all functions set verify_jwt = false", and this one doesn't. The H nightly test calls `runPurge` directly, so it never exercises `index.ts` or the cron path and can't catch this.
+- **Fix:** add `[functions.bug-report-retention-purge]` with `enabled = true` and `verify_jwt = false`. Optionally add a check that a local POST with the secret reaches the handler.
+
+**2. Low–Medium: a segment can hold only the Meta event, with the FullSnapshot pushed to the next segment.**
+- **Where:** `lib/bugReport/upload/segments.ts:121-129` (the estimated cut points) and `:94-98` (the bisect).
+- **Defect:** neither rule stops a cut at index 1, between Meta and FullSnapshot.
+- **Scenario:** a checkout that goes over the cap and has a FullSnapshot with a large share of its characters but a good compression ratio. That is common, since DOM text compresses well. My test planned `0:[Meta] 54 B`, `1:[FullSnapshot] 1.4 KB`, then continuation pieces. This breaks the spec rule that segment 0 starts with Meta + FullSnapshot (F2), and the file's own header comment. The replay probably still plays, because the segments are concatenated. F2 passes only because its test data doesn't hit this case.
+- **Fix:** start the first cut at index 2 or later, and in `fit` use `mid &gt;= from + 2` when `from === 0` (a Meta + FullSnapshot pair that is too big is already handled as dropping the whole checkout).
+
+**3. Low–Medium: Sentry still stores an inferred IP on replays and feedback.**
+- **Where:** `lib/bugReport/upload/uploadReplay.ts:184-185` sets `ip_address: null`. `submitFeedback.ts:151-161` sets no `ip_address` at all.
+- **Defect:** the code comment says `null` stops relay inferring an IP, but it doesn't.
+- **Evidence (dev Sentry):** replays with the real report tags from 12:19–12:26 UTC, after the 07:07 tunnel change that dropped X-Forwarded-For, all have `user.ip` set. The latest feedback event has `user.ip_address` set too. The address is always private, so it is the tunnel's ingress address, not the user's. Replays from 06:51–07:01, before that change, have none.
+- **Why it matters:** the tracker decision "send ip_address null / no IP inference" isn't met, and F7 doesn't check for an IP. My reading, from the SDK source (only `undefined` is replaced with `{{auto}}`) plus the stored data, is that relay treats `null` like a missing field for JavaScript events. That cause is unverified.
+- **Fix:** rely on the org/project "Prevent storing IP addresses" setting and list it as required in the PR notes. Add an F7 assertion that `user.ip` is absent. Correct the comment.
+
+**4. Low: the K step names a spec file that doesn't exist, and nothing fails.**
+- **Where:** `.github/workflows/_bug-reporter-e2e.yml:444-447`.
+- **Defect:** it lists `tests/e2e/bugReport/review-perf.spec.ts`, which is not on the branch.
+- **Scenario:** I checked that `npx playwright test --list upload-measure.spec.ts review-perf.spec.ts` exits 0 and silently ignores the missing file. `ci-playwright.sh` only fails when nothing at all ran, so K3, the ≤5 s p95 hard-fail check, never runs while the step passes as "K1–K3".
+- **Fix:** add the file with 5b, and until then have the step check that every named spec exists.
+
+**5. Low: a 5xx that carries a `Retry-After` header ends the whole report as "try again later".**
+- **Where:** `uploadReplay.ts:220-232`.
+- **Defect:** `updateRateLimits` sets `all` for any response with `Retry-After`, whatever the status (confirmed in the @sentry/core 10.3.0 source). The next loop pass then returns `rate_limited`.
+- **Scenario:** a 503 with `Retry-After: 30` on segment 1. There is no retry, and feedback is never sent, when the spec says to retry 5xx and, if that fails, send feedback without the replay. It is uncommon, since Sentry or nginx 5xx usually has no `Retry-After`.
+- **Fix:** only return `rate_limited` from the loop's own check when the response was a 429; otherwise sleep for the retry-after time within the three tries, or fall through to `failed`.
+
+**6. Low, unverified impact: segment sends have no timeout.**
+- **Where:** `uploadReplay.ts:223`.
+- **Defect:** `makeFetchTransport` has no request timeout, and the `signal` option is only checked between attempts. On this branch nothing passes a signal.
+- **Scenario:** a stalled tunnel or relay connection leaves Submit hanging until the browser gives up, which is minutes. The feedback send has a 30 s race; the upload has none.
+- **Fix:** add a per-attempt timeout that is classified as `retry`, and have 5b pass an abort signal.
+
+**7. Low: a class with a lot of matching reports can stall the purge.**
+- **Where:** `purge.ts:325-339`.
+- **Defect:** `purgeClass` returns `null` when the feedback list hits the page cap (50 × 100) before deleting anything.
+- **Scenario:** a class with more than 5,000 matching feedback issues never makes progress. It is re-listed every run, stays unrecorded, and so keeps sorting first. Separately, if the replay list hits the cap after feedback was deleted, those deletions are missing from the run's counts.
+- **Fix:** delete what was listed, then defer; add partial counts to the summary.
+
+**8. Low: the time budget is only checked between classes.**
+- **Where:** `supabase/functions/bug-report-retention-purge/index.ts:51` and `purge.ts:407-411`.
+- **Defect:** one class with many replays (one DELETE each, plus 429 waits of up to 60 s × 4) can run far past 100 s.
+- **Impact:** limited, because the worker lifetime is 400 s and the deletes are safe to repeat.
+- **Fix:** also check the budget inside `purgeClass`'s replay loop.
+
+**Unverified:** the pg_net timeout is 5 s (`migration:109`) against a run of up to 100 s. That is the same pattern the existing reconcilers use. The response status (502 or 500) is lost, but failures also go to Sentry through `captureMessage`.
+
+## Checked and found clean
+- **Tests:** the Jest envelope, submitFeedback and upload suites pass (33 tests), as do the purge `deno test` suite (15) and my planner experiments. The oversized FullSnapshot drops the whole checkout, an oversized later event keeps the exact prefix, and the size cap is applied after compression.
+- **Envelope framing:** `length` is set on `replay_recording` and the binary payload passes through untouched. `parseEnvelope` and `serializeEnvelope` handle the length rules and blank lines correctly. The zlib wrapper is right (`CompressionStream("deflate")`). The `{"segment_id":n}\n` prefix is right.
+- **Replay event:** `replay_id` equals `event_id`, segment ids are gap-free, `replay_type` is `buffer`, and only the five tags go on each segment.
+- **Upload logic:**
+  - Segments are sent one after another, and feedback goes only after all get a 2xx.
+  - Retries follow the spec: 3 tries, backoff 1 s then 2 s. A 429 aborts the report, 413 and other 4xx are permanent, and a missing status is treated as a failure.
+  - The rate-limit category maps to `replay`.
+- **Transport and DSN:**
+  - The transport: turning keepalive off takes effect because `fetchOptions` is spread after it. It uses the tunnel URL, and the envelope header carries the DSN when a tunnel is used.
+  - `beforeSendFeedback` is emitted synchronously, so removing the hook right after is safe. `afterSendEvent` fires with the error object on a network failure, so there is no 30 s hang there.
+  - The tunnel does a byte-safe host/project/prefix check and passes `Retry-After` and `X-Sentry-Rate-Limits` through.
+- **Purge, against the live dev Sentry:**
+  - `statsPeriod=365d` is accepted for both issues and replays, and resolved feedback is included.
+  - `issueCategory` is present on list items.
+  - The per-issue tag endpoint has the shape the exact-tag guard expects, and returns 404 when the tag is absent.
+  - Replay `tags.class_id` is a list.
+- **Purge, in code:** the Link cursor parsing, the 429, 5xx and 401/403 classification, deleting feedback in batches of 100, counts-only logging, and the secret check.
+- **Migration, on the local DB:** `DATE` columns, the UTC-midnight rule matches between the SQL and TypeScript and gives day 31 due and day 29 not. The candidate RPC runs. Execute grants are service_role only. The migration can be re-run safely (`if not exists`, `create or replace`, unschedule then schedule), and the vault secret is read through `call_edge_function_internal`.
+- **CI:**
+  - Verdict reads `outcome`, which still shows a failure under `continue-on-error`.
+  - F8 correctly stops the later groups.
+  - The gate, untrusted and `!cancelled()` conditions are right for the schedule, dispatch and pull_request_target events.
+  - Release `detect` works for push and PR events.
+  - The lint.yml Jest prefix and `lint:pii` exit codes are correct.
+  - `renovate.json` rule order is correct.
+  - `ci-playwright.sh` keeps Playwright's exit code through `PIPESTATUS` and fails when every test was skipped.</result>
+<usage><subagent_tokens>168596</subagent_tokens><tool_uses>53</tool_uses><duration_ms>477013</duration_ms></usage>
+</task-notification>
