@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M3NBEQKV6JXPK5QK88B3RMMJ",
+  "strategy": "manual-commit",
+  "branch": "feature/bug-reporter",
+  "checkpoints_count": 4,
+  "files_touched": [
+    ".github/workflows/release-images.yml",
+    "DEPLOYMENT.md",
+    "Dockerfile",
+    "charts/pawtograder/README.md",
+    "charts/pawtograder/examples/values-staging.yaml",
+    "docs/operations/production-install.md",
+    "instrumentation-client.ts",
+    "next.config.ts",
+    "scripts/export-staging-env.sh",
+    "sentry.edge.config.ts",
+    "sentry.server.config.ts",
+    "tests/unit/bugReport-instrumentation-client.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 56,
+    "cache_creation_tokens": 86596,
+    "cache_read_tokens": 1864570,
+    "output_tokens": 31933,
+    "api_call_count": 25
+  }
+}
