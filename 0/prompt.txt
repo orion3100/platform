@@ -1,0 +1,61 @@
+<task-notification>
+<task-id>a92d7f148c6bba316</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/tasks/a92d7f148c6bba316.output</output-file>
+<status>completed</status>
+<summary>Agent "Pkg 6b: retention purge" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Package 6b is built and committed as `8cbb7b64` on `bug-reporter/pkg-6b-purge`. The purge logic and mocked-Sentry unit tests pass. The actual deletes have never run against Sentry, because the delete token (HU3) doesn't exist yet.
+
+## What I built
+- **`supabase/functions/bug-report-retention-purge/`**
+  - `index.ts`: the handler. It checks the edge-function secret, then calls the candidate query, runs the purge and records each finished class. It logs and returns counts only.
+  - `purge.ts`: the purge logic, kept separate so it can be tested.
+  - `purge.test.ts`: unit tests against a mocked Sentry.
+  - `retentionPurge.nightly.ts`: the real-Sentry H1–H3 spec.
+- **Feedback:** it lists issues matching `issue.category:feedback class_id:"N"` with Link-cursor pagination, then deletes by `?id=` in batches of 100 (Sentry allows 1000; 100 keeps URLs short).
+- **Replays: per-id delete, not the bulk job.** The bulk job deletes whatever its query matches on the server, so our own tag check couldn't run first. It also needs a time range and finishes asynchronously, so counts would come from polling. Listing then deleting by id puts the check in front of every delete and gives exact counts.
+- **Exact tag match, two layers:**
+  - On 26.5, `class_id:N` is an exact match: `class_id:99900` does not match 999001; only a trailing `*` does prefix matching.
+  - Independently, each item's own tag values must be exactly `[N]` before it is deleted, and issues must be in the feedback category. So reports without a `class_id` (H3), and class 10's reports when purging class 1, survive even if the search returns them.
+- **Failures:**
+  - A 429 waits for `Retry-After` (capped at 60 s, 5 tries).
+  - 5xx and network errors back off exponentially.
+  - 401, 403 or 429s that don't clear stop the run.
+  - Classes that fail or don't get reached stay unrecorded and are retried the next day. Each run stops starting new classes after 100 s and handles at most 50.
+- **Migration `supabase/migrations/20260929120000_bug_reporter.sql`** (created; I'm the first package to write to it):
+  - I added a small state table, `bug_report_retention_purges` (RLS on, no grants to anon or authenticated). It records the last sweep per class, lets a doubled cron call skip classes swept in the last 20 hours, and puts never-swept classes first.
+  - Two service-role-only RPCs, `get_bug_report_retention_purge_candidates` and `record_bug_report_retention_purge`.
+  - A daily `pg_cron` job at `41 5 * * *`, using `call_edge_function_internal` like the other reconcilers.
+  - A class keeps being swept daily for 365 days after its grace period, because reports can still arrive against an archived course. After that the job never queries it again. 365 must stay at or above `sentry.cleanup.days` (about 150).
+- **Local DB:** applied the migration under the DB lock, checked the SQL for 29/31 days, null end dates, the 365-day window and the 20-hour skip, confirmed `authenticated` is denied, and ran `npm run client-local`. The types diff contains only my additions.
+- **Docs:** a new "Bug report retention purge" subsection in `DEPLOYMENT.md`. `scripts/setup-openbao-edge-functions.sh` now lists `SENTRY_PURGE_TOKEN`, `SENTRY_URL`, `SENTRY_ORG`, `SENTRY_PROJECT` and `SENTRY_PURGE_ENVIRONMENT` in the `sentry` bundle, which only edge functions mount. `test:functions` in `package.json` now includes the new directory.
+
+## Tests
+- **PR tier: 15 pass**, both on their own and inside `npm run test:functions` (all 620 + 19 pass). They cover H1 (31 days: deleted), H2 (29 days: no Sentry call at all), H3 (no `class_id`, even with a search that returns everything), class 1 vs 10 under a prefix-matching search, error issues left alone, 250 feedback and 130 replays across pages in delete batches of 100/100/50, 429 recovery, repeated 429s, a Retry-After over the cap, 403, 5xx, the environment filter and date boundaries.
+- **Real Sentry, read-only token:** the list and tag-check calls work against the dev Sentry. Class 999001 matches; 99900 and 9990 don't; checking 999001's issue as class 99900 correctly fails.
+- **Nightly H1–H3:** it skips with "SENTRY_PURGE_TOKEN is not set (human task HU3…)", and I checked that. It uses class ids from a reserved 9-digit range, a dedicated environment `bug-report-purge-test`, and purges only its own two classes.
+  - I ran it with the read-only token standing in for the purge token. The feedback half works: all 3 items were visible and tagged correctly.
+  - It then failed at "replays not visible within 60 s", which is the known dev Sentry fault where replays aren't stored. The replay assertions can't pass until that's fixed.
+- **Boot check:** I didn't restart the shared `supabase functions serve`. It serves `/home/jon/platform/supabase/functions`, so it can't see a function in my worktree. Instead I ran `index.ts` under plain Deno with the same imports:
+  - no secret: 401;
+  - no token: 200 `{"skipped":"not_configured","missing":[…]}`;
+  - fake unreachable Sentry: 502, the run stopped at `resolve_project:network`, counts-only logs, no state written.
+
+  It still needs a boot check under the real serve once it's in the main checkout.
+
+## Decisions for the human
+1. **Class ids collide across deployments sharing the dev Sentry org** (local, CI, staging). A purge from any one of them deletes the others' reports with the same `class_id`. I added the optional `SENTRY_PURGE_ENVIRONMENT` filter (off by default, which matches the spec). It only helps if each deployment sets its own `SENTRY_ENVIRONMENT`; the web SDK otherwise falls back to `NODE_ENV`, typically "production". Prod is a separate install, so it's unaffected.
+2. **Token scopes for HU3:** I documented `org:read project:write event:admin`. `org:read` is my addition, in case Sentry's org-level issue and replay lists need it; I couldn't check without the token.
+3. **Bulk delete of feedback issues was never exercised** (it returns 403 with the agent token). If Sentry 26.5 refuses bulk delete for feedback issues, it will need a per-issue delete fallback (limited to 5 per 5 s).
+4. **Not covered by this job:** reports for classes with no `end_date`, and error events tagged `class_id`. Both are left to Sentry's own cleanup, as ADR 1 says.
+
+## Notes for integration
+- Package 2's exhaustiveness check will need privacy entries for the new table's columns and the three new RPCs.
+- The `DEPLOYMENT.md` subsection sits right after the Error reporting section, which package 0 rewrites, so expect a small merge conflict.
+- Leftover synthetic data: about 6 feedback items in the dev Sentry under `bug-report-purge-test`, which the read-only token can't delete. In the local DB, 4 classes with `e2e-ignore-purge-*` slugs and a null `end_date`; they can't be deleted because of FKs, and the null date keeps them out of the purge.
+
+Scratch scripts are in `/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/scratchpad/pkg6b/`.</result>
+<usage><subagent_tokens>190407</subagent_tokens><tool_uses>89</tool_uses><duration_ms>1112850</duration_ms></usage>
+<worktree><worktreePath>/home/jon/platform/.claude/worktrees/agent-a92d7f148c6bba316</worktreePath><worktreeBranch>worktree-agent-a92d7f148c6bba316</worktreeBranch></worktree>
+</task-notification>
