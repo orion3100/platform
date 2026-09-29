@@ -1,0 +1,35 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M3NBEZP2A15B6YMCER61RNG4",
+  "strategy": "manual-commit",
+  "branch": "feature/bug-reporter",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "hooks/useCourseController.tsx",
+    "supabase/functions/assignment-group-create/index.ts",
+    "supabase/functions/assignment-group-instructor-create/index.ts",
+    "supabase/functions/course-import-sis/index.ts",
+    "supabase/functions/enrollments-add/index.ts",
+    "supabase/functions/invitation-create/index.ts",
+    "supabase/functions/notification-queue-processor/index.ts",
+    "supabase/functions/user-fetch-azure-profile/index.ts",
+    "tests/unit/bugReport-identity.test.ts",
+    "utils/supabase/middleware.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 56,
+    "cache_creation_tokens": 86596,
+    "cache_read_tokens": 1864570,
+    "output_tokens": 31933,
+    "api_call_count": 25
+  }
+}
