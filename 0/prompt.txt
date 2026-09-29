@@ -1,0 +1,163 @@
+/goal Supervise sub-agents to build one mega PR that satisfies the entirety of @bug-reporter-handoff.md
+
+---
+
+use ~/.config/sentry-dev/pawtograder.env
+
+---
+
+<task-notification>
+<task-id>a85b686a3528e71f4</task-id>
+<tool-use-id>toolu_012GV2DwP9rFvmscsoNGpN2e</tool-use-id>
+<output-file>/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/tasks/a85b686a3528e71f4.output</output-file>
+<status>completed</status>
+<summary>Agent "Research: Sentry replay ingest" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>None of the three questions came out as a clean go. Open question 1 and the 6b precondition are go. Open question 2 is blocked by an infrastructure fault in the dev Sentry: it accepts replays but never stores them. The tool refused to write `REPORT.md`, so the full report is below. The scripts are in `/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/scratchpad/research/`.
+
+## Verdicts
+
+| Question | Verdict |
+|---|---|
+| **Open question 2** (`replay_type:"buffer"`, no triggering error, start 5 min ago) | **Blocked by the fault.** Every replay envelope got HTTP 200 with no rejection, so relay accepts the format. But no replay of any kind gets stored here, including a normal session-mode replay sent by the real `@sentry/browser` 10.3.0 SDK. So the failure isn't specific to our format, but ingest isn't confirmed either. Per the brief, I stopped after one run of each and didn't keep retrying. |
+| **Open question 1** (per-item size limit) | **Go for the 8 MiB cap.** 8.0 MiB → 200, 9.9 MiB → 200, 10.5 MiB → **413** `envelope exceeded size limits for type 'replay_recording'`, logged by Sentry as `too_large:replay_recording`. The limit is 10 MiB on the whole item, including the `{"segment_id":n}\n` line. Package 6 should treat 413 as permanent: no retry. Whether the 8 MiB replay was *stored* can't be checked because of the fault. |
+| **6b precondition** (delete endpoints) | **Go.** All the endpoints exist at tag 26.5.0 and return 403 (not 404/405) to the agent token. The HU3 purge token needs **`project:write`** for replays and **`event:admin`** for feedback. |
+| Linked error | The error side works: it carries `tags.replayId` and `contexts.replay.replay_id`, and a Discover query `replayId:&lt;id&gt;` finds it. The replay side (`error_ids`, `count_errors`) can't be checked. |
+| Feedback | **Works.** Visible via the API in 250 ms as a `feedback` issue with `class_id`, `role`, `route`, `release` and `contact_ok`. `contexts.feedback.replay_id` is set and Sentry adds `contexts.replay.replay_id` from it. Email and name are null. |
+
+## Infrastructure fault (for the human)
+- Seven replays got 200 but none can be found: details endpoint 404 after 90 s, replay list empty, `hasReplays: false`. These were 3 hand-built buffer segments, 1 hand-built session replay, 2 size-test replays and 1 from the real SDK.
+- Sentry's usage stats record no outcome for any of the accepted replays, yet they do record the 10.5 MiB rejection. So relay passes replays on and they are lost afterwards. Sentry records a replay as accepted only when its replay consumer processes segment 0, so that consumer is probably not processing them.
+- `GET /projects/{org}/{proj}/replays/&lt;any id&gt;/recording-segments/` returns an HTML 500 for every id, even random ones, in both projects. In 26.5.0 that endpoint starts by setting up the replay blob storage, so the storage setting (`replay.storage.backend`) is probably misconfigured.
+- The org has the `session-replay` feature, so this isn't a feature flag.
+- To check on the cluster: whether the `ingest-replay-recordings` consumer and the snuba replays consumer are running, whether the install uses the `errors-only` profile, and the replay storage config.
+- Once fixed, `node send-replay.mjs &amp;&amp; node verify-replay.mjs` answers open question 2 in about 2 minutes.
+
+## Shapes that got 2xx
+- **Endpoint:** built by `getEnvelopeEndpointWithUrlEncodedAuth(dsnFromString(dsn))`, sent through `@sentry/core` `createTransport` (the same transport code the browser SDK uses).
+- **Replay segment:** a `replay_event` item plus a `replay_recording` item, the same shape the SDK's `createReplayEnvelope` builds.
+  - The event has `event_id` = `replay_id`, `segment_id`, `replay_type`, `replay_start_timestamp`, `timestamp`, `urls`, `error_ids`, `trace_ids`, `tags`, `user:{id}` and `platform:"javascript"`.
+  - The recording body is `{"segment_id":n}\n` followed by zlib deflate of the rrweb event array.
+- **Linked error:** `contexts.replay.replay_id`, `tags.replayId`, a trace id that is listed in the replay's `trace_ids`, and the error's id in segment 0's `error_ids`.
+- **Feedback:** item `{"type":"feedback"}` with `contexts.feedback {message, url, source:"api", replay_id, associated_event_id}`.
+
+## API for F7 and the purge (base `/api/0`)
+
+| Need | Request | Notes |
+|---|---|---|
+| Replay details | `GET /organizations/{org}/replays/{id}/` | Returns `tags` (map of lists), `error_ids`, `trace_ids`, `count_segments`, `count_errors`, `user {id, username, email, ip, display_name}`, `urls`, `replay_type` |
+| Download recording | `GET /projects/{org}/{proj}/replays/{id}/recording-segments/?per_page=100` | Always returns the bodies as JSON `[[seg0 events], ...]`, already inflated; currently 500 here |
+| One segment | `…/recording-segments/{n}/?download` | Raw segment JSON |
+| Replays by tag | `GET /organizations/{org}/replays/?project=-1&amp;statsPeriod=90d&amp;query=class_id:N` | 200 |
+| Feedback by tag | `GET /organizations/{org}/issues/?project=-1&amp;statsPeriod=90d&amp;query=issue.category:feedback class_id:N` | Returns resolved items too once `query` is given. Searches that don't name `issue.category:feedback` leave feedback out. |
+| Linked errors via Discover | `GET /organizations/{org}/events/?dataset=discover&amp;field=id&amp;query=replayId:&lt;id&gt;` | Found the linked error |
+| Feedback event | `GET /projects/{org}/{proj}/events/{id}/` | |
+| Delete one replay | `DELETE /projects/{org}/{proj}/replays/{id}/` | `project:write`. Async; returns 204 even for an id with no data |
+| Bulk-delete replays by query | `POST /projects/{org}/{proj}/replays/jobs/delete/` with `{"data":{"rangeStart","rangeEnd","environments":[],"query":"class_id:N"}}` → 201 | `project:write`. Poll `GET …/jobs/delete/{job_id}/` for status |
+| Delete feedback issues | `DELETE /organizations/{org}/issues/?id=…&amp;id=…` → 204 | `event:admin`, at most 1000 per call, feedback issues qualify |
+| Delete one issue | `DELETE /organizations/{org}/issues/{id}/` → 202 | `event:admin`, limited to 5 per 5 s |
+
+For feedback, the purge job should list ids with the tag query and then delete by `?id=`: with ids given, the endpoint ignores the query, so a delete can't match more than intended.
+
+## SDK checks (@sentry/core 10.3.0)
+- **Binary items:** `serializeEnvelope` appends a `Uint8Array` payload unchanged. A round trip of random bytes and of a real recording containing `\n` bytes came back byte-identical (`check-serialize.mjs`).
+- **Transport gotchas:**
+  - If an earlier response rate-limited replays, `send()` quietly drops the items and returns `{}` with no `statusCode`, so package 6 must treat a missing status as failure.
+  - For bodies of 60 KB or less the browser transport sets `keepalive`. That only happens at submit, but B3's "no keepalive" assertion needs to allow it there.
+- **`sendFeedback(…, {includeReplay:false})`:** `includeReplay` is only read by `replayIntegration`, which we don't install, so replay code is never touched. Two side effects:
+  - It calls `getCurrentScope().setTags(params.tags)`, which leaves `class_id`, `contact_ok` and the rest on every later error. Call it inside `withScope`, or set the tags in the hook instead.
+  - It defaults `url` to `location.href`, the concrete path with ids, which becomes the `url` tag and `contexts.feedback.url`. Pass `url` explicitly if D17 wants only the route pattern.
+- **`beforeSendFeedback`:**
+  - It's a client hook (`client.on(...)`), not an init option.
+  - It runs synchronously and gets the raw feedback event. It can change `contexts.feedback.replay_id`, `tags`, `user` and `contexts` in place.
+  - It can't drop the event, async work in it isn't awaited, and the scope's data is merged in afterwards.
+  - `beforeSend` does not run for feedback at all.
+
+## Question for the human
+The stored feedback has `user.ip_address` filled in with a private ingress IP. Sentry inferred it even though our events sent none. To keep reports to user ID and role (ADR 3), either send `ip_address: null` on replay events and feedback, or turn on the org's "Prevent storing of IP addresses". Which do you want?
+
+## Cleanup
+The 3 test issues are resolved (smoke error 156, linked error 158, feedback 157). A scan of the research directory for the Sentry URL, token, DSN host and DSN key found nothing.
+
+## Files
+In `/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/scratchpad/research/`. Run each from that directory after `set -a; . ~/.config/sentry-dev/pawtograder.env; set +a`.
+- `lib.mjs`: shared helpers (transport, API client, synthetic rrweb events, envelope builder).
+- `send-replay.mjs`: sends a linked error, then N segments, then feedback. Flags: `--segments`, `--start-minutes-ago`, `--replay-type`, `--no-error`, `--no-feedback`, `--class-id`, `--out`.
+- `verify-replay.mjs`: the F7 checks against a run's ids.
+- `smoke.mjs`: F8 smoke error; exits 2 if it isn't visible in 60 s.
+- `size-test.mjs`: the size-limit probe; results in `size-test-results.json`.
+- `probe-delete.mjs`: the non-destructive 6b probe; output in `probe-delete.log`.
+- `check-serialize.mjs`: offline check of binary envelopes.
+- `sdk-control.mjs`: diagnostic run of the real SDK in headless Chromium; needs `sdk-bundle.js` built from `sdk-entry.js` with esbuild.
+- `resolve-test-issues.mjs`: resolves the research issues.
+- `src/`: the Sentry 26.5.0 source files I read.</result>
+<usage><subagent_tokens>147890</subagent_tokens><tool_uses>65</tool_uses><duration_ms>1037363</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a959cb4716ff1fe4d</task-id>
+<tool-use-id>REDACTED</tool-use-id>
+<output-file>/tmp/claude-1000/-home-jon-platform/8b39a430-78a7-4625-b584-fa0fd315d6ec/tasks/a959cb4716ff1fe4d.output</output-file>
+<status>completed</status>
+<summary>Agent "Pkg 2: classification + parser" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I've finished my half of package 2: the draft privacy classification, the generator, the exhaustiveness check, the select parser, name variants and the regex backstop. All of it is committed on `bug-reporter/pkg-2-classification`, nothing is pushed, and the files other packages own are untouched. The 42 Jest tests in `tests/unit/bugReport` pass (`npx jest tests/unit/bugReport`), and `npm run client-local` exits 0 against the shared DB, which it only read, and leaves no diff. The classification is a draft: 92 entries are marked for the human to check, and approving it is HU6.
+
+**Commits**
+- `4605ce32` classification, generator, exhaustiveness check
+- `f7ebfaf3` select parser and its tests
+- `2333e6b8` name variants and regex backstop
+- `2039f01f` `lib/bugReport/PRIVACY_REVIEW.md`, the reviewer's guide for HU6
+
+**Files**
+- `lib/bugReport/privacy.ts` is the draft classification, with a header saying it awaits HU6. Its types live in `lib/bugReport/privacyTypes.ts` and `privacy.ts` re-exports them.
+- `lib/bugReport/selectParser.ts`, `variants.ts` and `regexBackstop.ts`.
+- `lib/bugReport/generated/relationships.json` (foreign keys per table and view) and `edgeFunctionWrappers.json` (edge function name to its wrappers). The postprocess script regenerates both.
+- `scripts/bugReport/`: the generator plus its parts:
+  - `generatePrivacyDraft.ts`: by default it keeps existing entries and hand edits, adds `// DRAFT` entries for new keys and drops entries for removed keys. `--fresh` rebuilds everything and `--check` fails if the file is out of date.
+  - `columnHeuristics.ts` (column-name rules), `privacyOverrides.ts` (hand decisions) and `rpcReturnReview.json` (return shapes of the 58 RPCs that return Json, text or a record, read from their SQL by three read-only subagents; I spot-checked the results rather than reviewing every one).
+  - `schemaReader.ts` (reads the schema from the generated types) and `privacyArtifacts.ts` (writes the runtime maps and runs the exhaustiveness check).
+- `scripts/PostprocessSupabaseTypes.ts` now fails `client`/`client-local` when anything lacks an entry, names the missing keys, and tells you to run the generator. I checked this with an injected column.
+- `tests/unit/bugReport/privacyExhaustive.test.ts` runs the same check in CI and confirms the two generated JSON files are current.
+
+**APIs the ingest phase and 2a build on**
+- **`privacy.ts`** exports `PiiKind`, `TableRef = { $table }`, `JsonPathMap`, `RpcClassification`, `COLUMNS`, `RPCS` and `EDGE_FUNCTIONS`.
+- **Table rows:** RPCs that return rows of a table are written `{ $table: "profiles" }`. The same marker can be the value of a JSONPath entry for rows embedded in Json.
+- **Deviation from the spec:** the `RPCS` type is widened from the spec's `PiiKind | Record&lt;string, PiiKind&gt;` so it can hold that marker.
+- **JSONPath rule:** the most specific path covering a value decides its kind, and a path to an object covers everything under it. A value no path covers is reported, never treated as `none`.
+- **Edge functions:** wrappers that only call RPCs map `$` to `none`, and every wrapper maps `$.error` to `free_text`.
+- **`selectParser.ts`** exports:
+  - `classifyResponse(url, method, body)`, which returns `{ handled, values: {value, kind, source}[], unclassified }`
+  - `classifyRows(relation, rows)`, for `TableController` data and realtime rows
+  - `parseSelect` and `resolveEmbed`
+- **`variants.ts`** exports `normalizeForMatch`, `nameVariants`, `personNameDisplay`, `personNameVariants`, `matchPatterns(value, kind)` and `MIN_MATCH_LENGTH = 3`. Grades, initials and strings under 3 characters produce nothing.
+- **`regexBackstop.ts`** exports `findBackstopSpans(text)`, which returns sorted, merged `{start, end, kind: "email" | "nuid" | "mailto"}` spans. Package 3 still has to wrap it in its async detector interface.
+
+**Counts**
+
+| Section | Entries | By kind | Marked uncertain |
+|---|---|---|---|
+| Columns (153 tables, 15 views) | 1793 | none 1580, free_text 102, grade 46, handle 34, name 24, email 7 | 64 |
+| RPCs | 326 | 50 carry PII or table rows; 7 table-row returns | 23 |
+| Edge-function wrappers | 54 | 45 not all-`none`; 30 carry PII beyond `$.error` | 5 |
+
+**Decisions for the human, flagged in the review guide**
+1. **Staff-written course content is `none`:** assignment titles and descriptions, rubric text, section names. Changing it to `free_text` would block those components in replays.
+2. **Json columns of unknown shape are `free_text`:** audit rows, GitHub payloads and the like. That taints enum strings such as "open" inside them, so the ingest phase may need to skip short or enum-like values. That is a product call.
+3. **Extensions and late tokens are `grade`,** because they can reveal an accommodation.
+4. **Repository names are `handle`,** because they embed the student's GitHub username.
+5. **One RPC can't be fully expressed.** `get_gradebook_records_for_all_students_array` returns positional arrays with a free-text note at index 9, which the JSONPath subset can't address. The whole array is `grade`, so that note is protected only by blocking, never by matching.
+6. **One edge function has no classification.** `submission-serve-artifact` is called directly from the submission files page (`files/page.tsx`), not through a wrapper in `lib/edgeFunctions.ts`. The parser reports its response as unclassified.
+
+`npx tsc` shows errors only in two files I didn't touch: `tests/e2e/test-assignment-view-as-student.spec.ts` and `tests/unit/bulk-assign-assignee-options.test.ts`.</result>
+<usage><subagent_tokens>298447</subagent_tokens><tool_uses>120</tool_uses><duration_ms>1496840</duration_ms></usage>
+<worktree><worktreePath>/home/jon/platform/.claude/worktrees/agent-a959cb4716ff1fe4d</worktreePath><worktreeBranch>worktree-agent-a959cb4716ff1fe4d</worktreeBranch></worktree>
+</task-notification>
+
+---
+
+<task-notification>
+<summary>Goal check-in: background work still running</summary>
+</task-notification>

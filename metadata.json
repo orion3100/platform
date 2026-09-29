@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M3NBEDBX12HTSQ82AFGMFM7D",
+  "strategy": "manual-commit",
+  "branch": "feature/bug-reporter",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "app/api/tunnel/route.ts",
+    "lib/bugReport/envelope.ts",
+    "lib/bugReport/sentryDsn.ts",
+    "tests/unit/bugReport-envelope.test.ts",
+    "tests/unit/bugReport-tunnel.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 56,
+    "cache_creation_tokens": 86596,
+    "cache_read_tokens": 1864570,
+    "output_tokens": 31933,
+    "api_call_count": 25,
+    "subagent_tokens": {
+      "input_tokens": 1240,
+      "cache_creation_tokens": 1649251,
+      "cache_read_tokens": 88843943,
+      "output_tokens": 577661,
+      "api_call_count": 620
+    }
+  }
+}
