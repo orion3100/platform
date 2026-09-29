@@ -1,0 +1,84 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M3NZTX9CF51K7HS30J0HFRV3",
+  "session_id": "8b39a430-78a7-4625-b584-fa0fd315d6ec",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-29T07:07:32.817158591Z",
+  "branch": "feature/bug-reporter",
+  "checkpoints_count": 4,
+  "save_step_count": 1,
+  "files_touched": [
+    "app/api/tunnel/route.ts",
+    "tests/unit/bugReport-tunnel.test.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5[1m]",
+  "turn_id": "ea8946aa7ef2",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 232,
+    "cache_creation_tokens": 398355,
+    "cache_read_tokens": 15562483,
+    "output_tokens": 85068,
+    "api_call_count": 110,
+    "subagent_tokens": {
+      "input_tokens": 926,
+      "cache_creation_tokens": 4141542,
+      "cache_read_tokens": 104498368,
+      "output_tokens": 398313,
+      "api_call_count": 467
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "prompt-skill-claude-code-goal-2026-09-29T00:32:32.615140801Z",
+      "event_type": "prompt_invocation",
+      "skill": {
+        "name": "goal"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "prompt_slash_command",
+        "confidence": "explicit"
+      },
+      "turn_id": "ac7ebc919fba",
+      "timestamp": "2026-09-29T00:32:32.615140801Z",
+      "native": {
+        "command": "/goal"
+      },
+      "collapse": {
+        "target": "user_message",
+        "label": "/goal",
+        "default_collapsed": true
+      }
+    }
+  ],
+  "session_metrics": {
+    "turn_count": 14
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-29T07:07:32.535125112Z",
+    "agent_lines": 26,
+    "agent_removed": 5,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 26,
+    "total_lines_changed": 31,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 517,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        "bug-reporter-handoff.md": 517
+      }
+    }
+  ]
+}
