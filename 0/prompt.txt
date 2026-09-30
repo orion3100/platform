@@ -2140,3 +2140,41 @@ About 28 seconds of idle waiting (to push the recording past one minute) are cut
 Nothing was committed. The tour files were removed from the repo, `git status` shows only the two files that were already untracked, and the server on :3020 is stopped.</result>
 <usage><subagent_tokens>250160</subagent_tokens><tool_uses>130</tool_uses><duration_ms>2455111</duration_ms></usage>
 </task-notification>
+
+---
+
+<task-notification>
+<task-id>b17q1lsrx</task-id>
+<summary>Monitor event: "PR #1047 CI checks and new comments/reviews"</summary>
+<event>CHECK argos: fail https://app.argos-ci.com/pawtograder/platform/builds/2554
+CHECK e2e-local: fail https://github.com/pawtograder/platform/actions/runs/36663401283/job/109723795928
+CHECK save-next-cache: skipping https://github.com/pawtograder/platform/actions/runs/36663401283/job/109735252331</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b17q1lsrx</task-id>
+<summary>Monitor event: "PR #1047 CI checks and new comments/reviews"</summary>
+<event>COMMENT argos-ci[bot]: **The latest updates on your projects.** Learn more about [Argos notifications ↗︎](https://argos-ci.com/docs/learn/revie</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b17q1lsrx</task-id>
+<summary>Monitor event: "PR #1047 CI checks and new comments/reviews"</summary>
+<event>ALL CHECKS DONE</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b17q1lsrx</task-id>
+<summary>Monitor event: "PR #1047 CI checks and new comments/reviews"</summary>
+<event>ALL CHECKS DONE</event>
+If this event is something the user would act on now, send a PushNotification. Routine or benign output doesn't need one.
+</task-notification>
