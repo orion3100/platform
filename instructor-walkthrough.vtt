@@ -1,0 +1,65 @@
+WEBVTT
+
+1
+00:00:01.000 --> 00:00:05.750 line:-1 position:2% size:62% align:start
+Alex Rivera, the instructor of CS 4530, is in Course Settings > Feature flags.
+
+2
+00:00:05.800 --> 00:00:09.230 line:-1 position:2% size:62% align:start
+"Bug report recordings" is off by default, for every course.
+
+3
+00:00:09.280 --> 00:00:16.710 line:-1 position:2% size:62% align:start
+When it's on, reports on supported pages can include a redacted recording of the last few minutes. Nothing is uploaded unless the user submits.
+
+4
+00:00:16.760 --> 00:00:22.630 line:-1 position:2% size:62% align:start
+He turns it on. It takes effect on the next page load.
+
+5
+00:00:22.680 --> 00:00:35.190 line:-1 position:2% size:62% align:start
+The discussion board lists the whole class's posts, so it is recorded at the 'structure' level: all text masked, no exceptions.
+
+6
+00:00:35.240 --> 00:00:40.710 line:-1 position:2% size:62% align:start
+Something looks wrong on this thread, so he reports it from the user menu.
+
+7
+00:00:40.760 --> 00:00:45.470 line:45% position:88% size:22% align:center
+Staff get the same dialog and the same notice.
+
+8
+00:00:45.520 --> 00:00:50.670 line:45% position:88% size:22% align:center
+In the preview, every name, subject and post is masked or blocked.
+
+9
+00:00:50.720 --> 00:00:57.510 line:45% position:88% size:22% align:center
+Only the page's structure is left: layout, buttons, clicks and navigation.
+
+10
+00:00:57.560 --> 00:01:05.430 line:45% position:88% size:22% align:center
+The list shows what text is still in the recording. None of it is course content.
+
+11
+00:01:05.480 --> 00:01:09.150 line:45% position:88% size:22% align:center
+Nothing is uploaded until Submit.
+
+12
+00:01:09.200 --> 00:01:19.030 line:45% position:88% size:22% align:center
+Sent.
+
+13
+00:01:19.080 --> 00:01:25.430 line:-1 position:2% size:62% align:start
+The instructor gradebook is not on the route list yet, so nothing is recorded here.
+
+14
+00:01:25.480 --> 00:01:31.270 line:45% position:88% size:22% align:center
+A report from here has a description and the contact checkbox, and no replay.
+
+15
+00:01:31.320 --> 00:01:36.230 line:-1 position:2% size:62% align:start
+Reports go to the team's self-hosted Sentry. Instructors don't have Sentry access; platform staff triage reports.
+
+16
+00:01:36.280 --> 00:01:41.790 line:-1 position:2% size:62% align:start
+With no Sentry DSN configured, "Report a bug" falls back to the old GitHub issue link.

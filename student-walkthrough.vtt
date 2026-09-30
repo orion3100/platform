@@ -1,0 +1,89 @@
+WEBVTT
+
+1
+00:00:01.000 --> 00:00:05.990 line:-1 position:2% size:62% align:start
+Priya Natarajan, a student in CS 3500. Her instructor has turned on Bug report recordings for this course.
+
+2
+00:00:06.040 --> 00:00:11.270 line:-1 position:2% size:62% align:start
+This assignment page is on the route list, so the browser keeps a rolling recording of her last few minutes.
+
+3
+00:00:11.320 --> 00:00:20.510 line:-1 position:2% size:62% align:start
+The recording stays in memory on this device. Nothing is sent unless Priya submits a report.
+
+4
+00:00:20.560 --> 00:00:37.150 line:-1 position:2% size:62% align:start
+She moves on to the discussion board.
+
+5
+00:00:37.200 --> 00:00:48.710 line:-1 position:2% size:62% align:start
+Discussion pages show other students' posts, so they are recorded at the 'structure' level: all text masked.
+
+6
+00:00:48.760 --> 00:00:51.870 line:-1 position:2% size:62% align:start
+She likes Sam's reply, and the request fails.
+
+7
+00:00:51.920 --> 00:00:57.190 line:-1 position:2% size:62% align:start
+Error toasts now offer "Report this".
+
+8
+00:00:57.240 --> 00:01:00.990 line:45% position:88% size:22% align:center
+The report is linked to the error behind the toast.
+
+9
+00:01:01.040 --> 00:01:08.110 line:45% position:88% size:22% align:center
+The notice: "This report includes a redacted recording of your last few minutes on this page".
+
+10
+00:01:08.160 --> 00:01:12.190 line:45% position:88% size:22% align:center
+Redaction ran in the browser, in a worker. The preview is exactly what would be uploaded.
+
+11
+00:01:12.240 --> 00:01:20.390 line:45% position:88% size:22% align:center
+Text is masked by default: every character is recorded as *.
+
+12
+00:01:20.440 --> 00:01:26.790 line:45% position:88% size:22% align:center
+Below it, every string still in the recording: page addresses, console messages, click targets. The list is also the preview's text alternative.
+
+13
+00:01:26.840 --> 00:01:32.030 line:45% position:88% size:22% align:center
+This console message contains her profile ID. She clicks Redact.
+
+14
+00:01:32.080 --> 00:01:38.190 line:45% position:88% size:22% align:center
+Redact removes a string from the preview and from the upload. The redaction re-runs.
+
+15
+00:01:38.240 --> 00:01:41.230 line:45% position:88% size:22% align:center
+She can also send only the last few minutes.
+
+16
+00:01:41.280 --> 00:01:55.670 line:45% position:88% size:22% align:center
+Keeping the last minute trims the preview and the upload to match.
+
+17
+00:01:55.720 --> 00:02:09.230 line:45% position:88% size:22% align:center
+On the thread: avatars and post bodies are blocked, recorded as empty boxes. Names and subjects are masked.
+
+18
+00:02:09.280 --> 00:02:15.590 line:45% position:88% size:22% align:center
+"You may contact me about this" is sent as a yes/no tag. The report carries her user ID and role, not her name or email.
+
+19
+00:02:15.640 --> 00:02:20.470 line:45% position:88% size:22% align:center
+Nothing has been uploaded yet. Nothing is uploaded until Submit.
+
+20
+00:02:20.520 --> 00:02:28.870 line:45% position:88% size:22% align:center
+Sent: the redacted replay, then one feedback item linked to the replay and the error.
+
+21
+00:02:28.920 --> 00:02:35.950 line:-1 position:2% size:62% align:start
+Priya's other course, CS 2510, has not turned the flag on. No recorder is loaded here.
+
+22
+00:02:36.000 --> 00:02:42.310 line:45% position:88% size:22% align:center
+"Report a bug" in the user menu still opens the dialog: a description and the contact checkbox, no replay.
