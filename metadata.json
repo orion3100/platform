@@ -1,0 +1,58 @@
+{
+  "cli_version": "0.11.3",
+  "checkpoint_id": "01M3X2ZNG2QQ05RMT75Q52RN7Y",
+  "strategy": "manual-commit",
+  "branch": "feature/bug-reporter",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "app/global-error.tsx",
+    "components/bugReport/BugReportProvider.tsx",
+    "components/bugReport/ReportBugDialog.tsx",
+    "components/ui/toaster.tsx",
+    "hooks/useAuthState.tsx",
+    "hooks/useCourseController.tsx",
+    "instrumentation-client.ts",
+    "lib/bugReport/errorEventLink.ts",
+    "lib/bugReport/recorder.ts",
+    "lib/bugReport/reportContext.ts",
+    "lib/bugReport/reportDialog.ts",
+    "lib/bugReport/sentryScrub.ts",
+    "lib/bugReport/submitFeedback.ts",
+    "lib/bugReport/types.ts",
+    "lib/bugReport/upload/uploadReplay.ts",
+    "supabase/functions/_shared/EnrollmentUtils.ts",
+    "supabase/functions/_shared/InvitationUtils.ts",
+    "supabase/functions/_shared/SentryInit.ts",
+    "supabase/functions/assignment-group-create/index.ts",
+    "supabase/functions/assignment-group-instructor-create/index.ts",
+    "supabase/functions/bug-report-retention-purge/index.ts",
+    "supabase/functions/enrollments-add/index.ts",
+    "supabase/functions/github-membership-reconciler/index.ts",
+    "supabase/functions/github-repo-reconciler/index.ts",
+    "supabase/functions/invitation-create/index.ts",
+    "supabase/functions/notification-queue-processor/index.ts",
+    "supabase/functions/user-fetch-azure-profile/index.ts",
+    "tests/unit/bugReport-clientScrub.test.ts",
+    "tests/unit/bugReport-errorToastLink.test.ts",
+    "tests/unit/bugReport-identity.test.ts",
+    "tests/unit/bugReport-submitFeedback.test.ts",
+    "tests/unit/bugReport-upload.test.ts",
+    "tests/unit/bugReport/recorder.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 75329,
+    "cache_read_tokens": 519508,
+    "output_tokens": 4724,
+    "api_call_count": 19
+  }
+}
